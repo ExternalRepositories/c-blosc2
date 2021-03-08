@@ -822,9 +822,9 @@ static int blosc2_intialize_header_from_context(blosc2_context* context, blosc_h
 }
 
 
-uint8_t* pipeline_c(struct thread_context* thread_context, const int32_t bsize,
-                    const uint8_t* src, const int32_t offset,
-                    uint8_t* dest, uint8_t* tmp, uint8_t* tmp2) {
+uint8_t* pipeline_forward(struct thread_context* thread_context, const int32_t bsize,
+                          const uint8_t* src, const int32_t offset,
+                          uint8_t* dest, uint8_t* tmp, uint8_t* tmp2) {
   blosc2_context* context = thread_context->parent_context;
   uint8_t* _src = (uint8_t*)src + offset;
   uint8_t* _tmp = tmp;
@@ -976,7 +976,7 @@ static int blosc_c(struct thread_context* thread_context, int32_t bsize,
     /* Apply the filter pipeline just for the prefilter */
     if (memcpyed && context->prefilter != NULL) {
       // We only need the prefilter output
-      _src = pipeline_c(thread_context, bsize, src, offset, dest, _tmp2, _tmp3);
+      _src = pipeline_forward(thread_context, bsize, src, offset, dest, _tmp2, _tmp3);
 
       if (_src == NULL) {
         return BLOSC2_ERROR_FILTER_PIPELINE;
@@ -984,7 +984,7 @@ static int blosc_c(struct thread_context* thread_context, int32_t bsize,
       return bsize;
     }
     /* Apply regular filter pipeline */
-    _src = pipeline_c(thread_context, bsize, src, offset, _tmp, _tmp2, _tmp3);
+    _src = pipeline_forward(thread_context, bsize, src, offset, _tmp, _tmp2, _tmp3);
 
     if (_src == NULL) {
       return BLOSC2_ERROR_FILTER_PIPELINE;
@@ -1136,9 +1136,9 @@ static int blosc_c(struct thread_context* thread_context, int32_t bsize,
 
 
 /* Process the filter pipeline (decompression mode) */
-int pipeline_d(blosc2_context* context, const int32_t bsize, uint8_t* dest,
-               const int32_t offset, uint8_t* src, uint8_t* tmp,
-               uint8_t* tmp2, int last_filter_index) {
+int pipeline_backward(blosc2_context* context, const int32_t bsize, uint8_t* dest,
+                      const int32_t offset, uint8_t* src, uint8_t* tmp,
+                      uint8_t* tmp2, int last_filter_index) {
   int32_t typesize = context->typesize;
   uint8_t* filters = context->filters;
   uint8_t* filters_meta = context->filters_meta;
@@ -1491,8 +1491,8 @@ static int blosc_d(
   } /* Closes j < nstreams */
 
   if (last_filter_index >= 0) {
-    int errcode = pipeline_d(context, bsize, dest, dest_offset, tmp, tmp2, tmp3,
-                             last_filter_index);
+    int errcode = pipeline_backward(context, bsize, dest, dest_offset, tmp, tmp2, tmp3,
+                                    last_filter_index);
     if (errcode < 0)
       return errcode;
   }
