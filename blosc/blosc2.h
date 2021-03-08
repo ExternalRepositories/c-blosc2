@@ -110,12 +110,14 @@ enum {
   BLOSC_BITSHUFFLE = 2,  //!< bit-wise shuffle
   BLOSC_DELTA = 3,       //!< delta filter
   BLOSC_TRUNC_PREC = 4,  //!< truncate precision filter
-  BLOSC_LAST_FILTER= 5,  //!< sentinel
+  BLOSC_UDFILTER = 5,  //!< user-defined filter
+  BLOSC_LAST_FILTER= 6,  //!< sentinel
 };
 
 enum {
   BLOSC2_MAX_FILTERS = 6,
   //!< Maximum number of filters in the filter pipeline
+  BLOSC2_MAX_UDFILTERS = 16,
 };
 
 /**
@@ -711,6 +713,17 @@ BLOSC_EXPORT const char* blosc_cbuffer_complib(const void* cbuffer);
 
 
 /*********************************************************************
+  Structures and functions related with filters plugins.
+*********************************************************************/
+
+typedef struct {
+    uint8_t id;
+    int (* forward)(const uint8_t *, uint8_t *, int32_t, void *);
+    int (* backward)(const uint8_t *, uint8_t *, int32_t, void *);
+    void *params;
+}blosc2_udfilter;
+
+/*********************************************************************
   Structures and functions related with contexts.
 *********************************************************************/
 
@@ -764,6 +777,8 @@ typedef struct {
   //!< The (sequence of) filters.
   uint8_t filters_meta[BLOSC2_MAX_FILTERS];
   //!< The metadata for filters.
+  blosc2_udfilter udfilters[BLOSC2_MAX_UDFILTERS];
+    //!< The user-defined filters.
   blosc2_prefilter_fn prefilter;
   //!< The prefilter function.
   blosc2_prefilter_params *pparams;
@@ -775,7 +790,9 @@ typedef struct {
  */
 static const blosc2_cparams BLOSC2_CPARAMS_DEFAULTS = {
         BLOSC_BLOSCLZ, 5, 0, 8, 1, 0, NULL,
-        {0, 0, 0, 0, 0, BLOSC_SHUFFLE}, {0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, BLOSC_SHUFFLE},
+        {0, 0, 0, 0, 0, 0},
+        {0},
         NULL, NULL };
 
 /**
@@ -789,12 +806,14 @@ typedef struct {
   //!< The number of threads to use internally (1).
   void* schunk;
   //!< The associated schunk, if any (NULL).
+  blosc2_udfilter udfilters[BLOSC2_MAX_UDFILTERS];
+    //!< The user-defined filters.
 } blosc2_dparams;
 
 /**
  * @brief Default struct for decompression params meant for user initialization.
  */
-static const blosc2_dparams BLOSC2_DPARAMS_DEFAULTS = {1, NULL};
+static const blosc2_dparams BLOSC2_DPARAMS_DEFAULTS = {1, NULL, {0}};
 
 /**
  * @brief Create a context for @a *_ctx() compression functions.

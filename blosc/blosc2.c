@@ -832,6 +832,7 @@ uint8_t* pipeline_c(struct thread_context* thread_context, const int32_t bsize,
   int32_t typesize = context->typesize;
   uint8_t* filters = context->filters;
   uint8_t* filters_meta = context->filters_meta;
+  blosc2_udfilter* udfilters = context->udfilters;
   bool memcpyed = context->header_flags & (uint8_t)BLOSC_MEMCPYED;
 
   /* Prefilter function */
@@ -865,6 +866,7 @@ uint8_t* pipeline_c(struct thread_context* thread_context, const int32_t bsize,
 
   /* Process the filter pipeline */
   for (int i = 0; i < BLOSC2_MAX_FILTERS; i++) {
+    int rc = BLOSC2_ERROR_SUCCESS;
     switch (filters[i]) {
       case BLOSC_SHUFFLE:
         for (int j = 0; j <= filters_meta[i]; j++) {
@@ -885,6 +887,26 @@ uint8_t* pipeline_c(struct thread_context* thread_context, const int32_t bsize,
         break;
       case BLOSC_TRUNC_PREC:
         truncate_precision(filters_meta[i], typesize, bsize, _src, _dest);
+        break;
+      case BLOSC_UDFILTER:
+        for (int j = 0; j < BLOSC2_MAX_FILTERS; ++j) {
+          if (udfilters[j].id == filters_meta[i]) {
+            if (udfilters[j].forward != NULL) {
+              rc = udfilters[j].forward(_src, _dest, bsize, udfilters[j].params);
+            } else {
+              BLOSC_TRACE_ERROR("Forward function is NULL");
+              return NULL;
+            }
+            if (rc != BLOSC2_ERROR_SUCCESS) {
+              BLOSC_TRACE_ERROR("User-defined filter %d failed during compression\n", filters_meta[i]);
+              return NULL;
+            }
+            goto udfiltersuccess;
+          }
+        }
+        BLOSC_TRACE_ERROR("User-defined filter %d not found during compression\n", filters_meta[i]);
+        return NULL;
+      udfiltersuccess:
         break;
       default:
         if (filters[i] != BLOSC_NOFILTER) {
@@ -1120,6 +1142,7 @@ int pipeline_d(blosc2_context* context, const int32_t bsize, uint8_t* dest,
   int32_t typesize = context->typesize;
   uint8_t* filters = context->filters;
   uint8_t* filters_meta = context->filters_meta;
+  blosc2_udfilter * udfilters = context->udfilters;
   uint8_t* _src = src;
   uint8_t* _dest = tmp;
   uint8_t* _tmp = tmp2;
@@ -1131,6 +1154,7 @@ int pipeline_d(blosc2_context* context, const int32_t bsize, uint8_t* dest,
     if (last_copy_filter) {
       _dest = dest + offset;
     }
+    int rc = BLOSC2_ERROR_SUCCESS;
     switch (filters[i]) {
       case BLOSC_SHUFFLE:
         for (int j = 0; j <= filters_meta[i]; j++) {
@@ -1174,6 +1198,26 @@ int pipeline_d(blosc2_context* context, const int32_t bsize, uint8_t* dest,
         break;
       case BLOSC_TRUNC_PREC:
         // TRUNC_PREC filter does not need to be undone
+        break;
+      case BLOSC_UDFILTER:
+        for (int j = 0; j < BLOSC2_MAX_FILTERS; ++j) {
+          if (udfilters[j].id == filters_meta[i]) {
+            if (udfilters[j].backward != NULL) {
+              rc = udfilters[j].backward(_src, _dest, bsize, udfilters[j].params);
+            } else {
+              BLOSC_TRACE_ERROR("Backward function is NULL");
+              return BLOSC2_ERROR_FILTER_PIPELINE;
+            }
+            if (rc != BLOSC2_ERROR_SUCCESS) {
+              BLOSC_TRACE_ERROR("User-defined filter %d failed during decompression.", filters_meta[i]);
+              return rc;
+            }
+            goto udfiltersuccess;
+          }
+        }
+        BLOSC_TRACE_ERROR("User-defined filter %d not found during decompression.", filters_meta[i]);
+        return BLOSC2_ERROR_FILTER_PIPELINE;
+      udfiltersuccess:
         break;
       default:
         if (filters[i] != BLOSC_NOFILTER) {
@@ -3275,6 +3319,9 @@ blosc2_context* blosc2_create_cctx(blosc2_cparams cparams) {
     context->filters[i] = cparams.filters[i];
     context->filters_meta[i] = cparams.filters_meta[i];
   }
+  for (int i = 0; i < BLOSC2_MAX_UDFILTERS; ++i) {
+    memcpy(&context->udfilters[i], &cparams.udfilters[i], sizeof(blosc2_udfilter));
+  }
   context->nthreads = cparams.nthreads;
   context->new_nthreads = context->nthreads;
   context->blocksize = cparams.blocksize;
@@ -3304,6 +3351,10 @@ blosc2_context* blosc2_create_dctx(blosc2_dparams dparams) {
   context->block_maskout = NULL;
   context->block_maskout_nitems = 0;
   context->schunk = dparams.schunk;
+
+  for (int i = 0; i < BLOSC2_MAX_UDFILTERS; ++i) {
+    memcpy(&context->udfilters[i], &dparams.udfilters[i], sizeof(blosc2_udfilter));
+  }
 
   return context;
 }
