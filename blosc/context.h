@@ -63,6 +63,10 @@ struct blosc2_context_s {
   /* Starts for every block inside the compressed buffer */
   int compcode;
   /* Compressor code to use */
+  uint8_t compcode_meta;
+  /* The metainfo for the compressor code */
+  blosc2_udcodec udcodecs[BLOSC2_MAX_UDCODECS];
+  //!< The user-defined compression codecs.
   int clevel;
   /* Compression level (1-9) */
   int use_dict;
