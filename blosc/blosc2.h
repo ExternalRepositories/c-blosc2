@@ -796,7 +796,7 @@ typedef struct {
  * @brief Default struct for compression params meant for user initialization.
  */
 static const blosc2_cparams BLOSC2_CPARAMS_DEFAULTS = {
-        BLOSC_BLOSCLZ, 0,{0}, 5, 0, 8, 1, 0, NULL,
+        BLOSC_BLOSCLZ, 0, {0}, 5, 0, 8, 1, 0, NULL,
         {0, 0, 0, 0, 0, BLOSC_SHUFFLE}, {0, 0, 0, 0, 0, 0},
         NULL, NULL };
 
@@ -818,7 +818,7 @@ typedef struct {
 /**
  * @brief Default struct for decompression params meant for user initialization.
  */
-static const blosc2_dparams BLOSC2_DPARAMS_DEFAULTS = {1, NULL,{0}};
+static const blosc2_dparams BLOSC2_DPARAMS_DEFAULTS = {1, NULL, {0}};
 
 /**
  * @brief Create a context for @a *_ctx() compression functions.
